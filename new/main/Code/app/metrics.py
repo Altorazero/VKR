@@ -71,6 +71,8 @@ def smooth(values: np.ndarray, mode: str) -> np.ndarray:
     if values.size == 0 or mode == "none":
         return values
     if mode == "moving_average":
+        if values.size < 5:
+            return values
         kernel = np.ones(5, dtype=np.float64) / 5.0
         return np.convolve(values, kernel, mode="same")
     if mode == "gaussian":
