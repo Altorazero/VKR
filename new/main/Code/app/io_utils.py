@@ -22,8 +22,8 @@ def resolve_audio_path(audio_path: str) -> Path:
     return resolved
 
 
-def load_wav_mono(audio_path: str) -> tuple[np.ndarray, int]:
-    path = resolve_audio_path(audio_path)
+def load_wav_mono(audio_path: str | Path) -> tuple[np.ndarray, int]:
+    path = audio_path if isinstance(audio_path, Path) else resolve_audio_path(audio_path)
 
     with wave.open(str(path), "rb") as wf:
         sample_rate = wf.getframerate()

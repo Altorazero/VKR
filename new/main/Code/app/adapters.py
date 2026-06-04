@@ -304,7 +304,7 @@ def _resample_if_needed(audio: np.ndarray, sample_rate: int, target_rate: int) -
 
 
 def _detect_language_code(text: str) -> str:
-    has_cyrillic = any("а" <= ch.lower() <= "я" or ch.lower() == "ё" for ch in text)
+    has_cyrillic = bool(re.search(r"[\u0400-\u04FF]", text))
     return "ru" if has_cyrillic else "en"
 
 

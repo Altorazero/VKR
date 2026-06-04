@@ -27,7 +27,7 @@ class SpeechTempoPipeline:
 
     def analyze(self, audio_path: str, params: AnalysisParams, reference_text: str | None = None) -> dict[str, Any]:
         resolved_audio_path = resolve_audio_path(audio_path)
-        audio, sample_rate = load_wav_mono(audio_path)
+        audio, sample_rate = load_wav_mono(resolved_audio_path)
         total_duration = len(audio) / sample_rate
 
         speech = self.vad.detect(audio, sample_rate, params.vad_threshold)

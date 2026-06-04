@@ -28,6 +28,26 @@ def write_test_wav(path: Path, sample_rate: int = 16000) -> None:
 
 
 class PipelineTests(unittest.TestCase):
+    def test_forced_fallback_when_real_adapters_unavailable(self):
+        with tempfile.TemporaryDirectory() as td:
+            audio_path = Path(td) / "fallback.wav"
+            write_test_wav(audio_path)
+            os.environ["AUDIO_ROOT"] = td
+
+            pipeline = SpeechTempoPipeline()
+
+            class UnavailableReal:
+                available = False
+
+            pipeline.vad.real = UnavailableReal()
+            pipeline.asr.real = UnavailableReal()
+            pipeline.aligner.real = UnavailableReal()
+
+            result = pipeline.analyze(audio_path.name, AnalysisParams(), reference_text="fallback check")
+            self.assertEqual(result["summary"]["adapters"]["vad"], "fallback_vad")
+            self.assertEqual(result["summary"]["adapters"]["asr"], "fallback_asr")
+            self.assertEqual(result["summary"]["adapters"]["aligner"], "fallback_aligner")
+
     def test_analyze_without_text(self):
         with tempfile.TemporaryDirectory() as td:
             audio_path = Path(td) / "a.wav"
