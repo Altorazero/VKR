@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any
 
-from .adapters import FallbackASR, FallbackAligner, FallbackVAD
+from .adapters import ASRAdapter, AlignerAdapter, VADAdapter
 from .config import AnalysisParams
-from .io_utils import load_wav_mono
+from .io_utils import load_wav_mono, resolve_audio_path
 from .metrics import (
     acceleration_stats,
     build_tempo_series,
@@ -21,18 +21,23 @@ from .visualization import compare_figure, spectrum_figure, tempo_figure, text_h
 
 class SpeechTempoPipeline:
     def __init__(self) -> None:
-        self.vad = FallbackVAD()
-        self.asr = FallbackASR()
-        self.aligner = FallbackAligner()
+        self.vad = VADAdapter()
+        self.asr = ASRAdapter()
+        self.aligner = AlignerAdapter()
 
     def analyze(self, audio_path: str, params: AnalysisParams, reference_text: str | None = None) -> dict[str, Any]:
+        resolved_audio_path = resolve_audio_path(audio_path)
         audio, sample_rate = load_wav_mono(audio_path)
         total_duration = len(audio) / sample_rate
 
         speech = self.vad.detect(audio, sample_rate, params.vad_threshold)
         pauses = pauses_from_speech(speech, total_duration, params.min_pause_duration)
 
-        words = self.aligner.align(reference_text, speech) if reference_text else self.asr.transcribe(speech)
+        words = (
+            self.aligner.align(reference_text, resolved_audio_path, audio, sample_rate, speech)
+            if reference_text
+            else self.asr.transcribe(resolved_audio_path, audio, sample_rate, speech)
+        )
 
         time, tempo = build_tempo_series(
             words=words,
@@ -64,6 +69,11 @@ class SpeechTempoPipeline:
             "words_per_second": float(word_count / max(speech_duration, 1e-9)),
             "params": asdict(params),
             "acceleration_stats": acceleration_stats(d1),
+            "adapters": {
+                "vad": self.vad.backend,
+                "asr": self.asr.backend,
+                "aligner": self.aligner.backend,
+            },
         }
 
         heatmap = None
@@ -128,14 +138,8 @@ class SpeechTempoPipeline:
             )
 
         comparison = {
-            "average_wpm": {
-                item["label"]: item["summary"]["wpm"]
-                for item in analyzed
-            },
-            "pause_count": {
-                item["label"]: item["pause_stats"]["count"]
-                for item in analyzed
-            },
+            "average_wpm": {item["label"]: item["summary"]["wpm"] for item in analyzed},
+            "pause_count": {item["label"]: item["pause_stats"]["count"] for item in analyzed},
         }
 
         return {

@@ -7,18 +7,23 @@ from pathlib import Path
 import numpy as np
 
 
-def load_wav_mono(audio_path: str) -> tuple[np.ndarray, int]:
+def resolve_audio_path(audio_path: str) -> Path:
     root = Path(os.getenv("AUDIO_ROOT", os.getcwd())).resolve()
     if not root.is_dir():
         raise FileNotFoundError(f"AUDIO_ROOT does not exist: {root}")
 
     catalog = _audio_catalog(root)
-    path = catalog.get(audio_path)
-    if path is None:
+    resolved = catalog.get(audio_path)
+    if resolved is None:
         raise FileNotFoundError(
             "Audio file not found in AUDIO_ROOT catalog. "
             "Use a relative .wav path from AUDIO_ROOT."
         )
+    return resolved
+
+
+def load_wav_mono(audio_path: str) -> tuple[np.ndarray, int]:
+    path = resolve_audio_path(audio_path)
 
     with wave.open(str(path), "rb") as wf:
         sample_rate = wf.getframerate()

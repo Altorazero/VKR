@@ -39,6 +39,10 @@ class PipelineTests(unittest.TestCase):
 
             self.assertIn("summary", result)
             self.assertIn("tempo_series", result)
+            self.assertIn("adapters", result["summary"])
+            self.assertIn(result["summary"]["adapters"]["vad"], {"silero_vad", "fallback_vad"})
+            self.assertIn(result["summary"]["adapters"]["asr"], {"whisper", "fallback_asr"})
+            self.assertIn(result["summary"]["adapters"]["aligner"], {"whisperx", "fallback_aligner"})
             self.assertGreaterEqual(result["summary"]["word_count"], 1)
             self.assertGreaterEqual(len(result["tempo_series"]["time"]), 1)
 
