@@ -68,7 +68,13 @@ class SpeechTempoPipeline:
 
         heatmap = None
         if reference_text:
-            word_values = [1.0 for _ in words]
+            word_values = []
+            for w in words:
+                dur = max(1e-6, w.end - w.start)
+                if params.tempo_unit == "words":
+                    word_values.append(float(60.0 / dur))
+                else:
+                    word_values.append(float(1.0 / dur))
             heatmap = {
                 "words": [w.word for w in words],
                 "values": word_values,

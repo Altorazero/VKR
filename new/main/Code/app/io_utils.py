@@ -9,7 +9,12 @@ import numpy as np
 
 def load_wav_mono(audio_path: str) -> tuple[np.ndarray, int]:
     root = Path(os.getenv("AUDIO_ROOT", os.getcwd())).resolve()
-    path = Path(audio_path).expanduser().resolve(strict=True)
+    user_path = Path(audio_path)
+    if user_path.is_absolute():
+        raise ValueError("audio_path must be relative to AUDIO_ROOT")
+    if ".." in user_path.parts:
+        raise ValueError("Path traversal is not allowed")
+    path = (root / user_path).resolve(strict=True)
 
     if path.suffix.lower() != ".wav":
         raise ValueError("Only .wav files are supported")

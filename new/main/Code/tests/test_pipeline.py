@@ -35,7 +35,7 @@ class PipelineTests(unittest.TestCase):
             os.environ["AUDIO_ROOT"] = td
 
             pipeline = SpeechTempoPipeline()
-            result = pipeline.analyze(str(audio_path), AnalysisParams())
+            result = pipeline.analyze(audio_path.name, AnalysisParams())
 
             self.assertIn("summary", result)
             self.assertIn("tempo_series", result)
@@ -50,7 +50,7 @@ class PipelineTests(unittest.TestCase):
 
             pipeline = SpeechTempoPipeline()
             result = pipeline.analyze(
-                str(audio_path),
+                audio_path.name,
                 AnalysisParams(),
                 reference_text="Это тестовый текст для выравнивания",
             )
@@ -69,8 +69,8 @@ class PipelineTests(unittest.TestCase):
             pipeline = SpeechTempoPipeline()
             result = pipeline.compare(
                 [
-                    {"label": "sp1", "audio_path": str(p1)},
-                    {"label": "sp2", "audio_path": str(p2)},
+                    {"label": "sp1", "audio_path": p1.name},
+                    {"label": "sp2", "audio_path": p2.name},
                 ],
                 AnalysisParams(),
             )
