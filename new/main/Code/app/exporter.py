@@ -21,7 +21,7 @@ def export_csv(records: list[dict[str, Any]], path: str) -> str:
     return str(output)
 
 
-def export_pdf_text_report(summary: dict[str, Any], path: str) -> str:
+def export_text_report(summary: dict[str, Any], path: str) -> str:
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     lines = ["Speech Tempo Report", "==================", ""]

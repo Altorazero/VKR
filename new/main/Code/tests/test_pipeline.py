@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import os
 import tempfile
 import unittest
 import wave
@@ -31,6 +32,7 @@ class PipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             audio_path = Path(td) / "a.wav"
             write_test_wav(audio_path)
+            os.environ["AUDIO_ROOT"] = td
 
             pipeline = SpeechTempoPipeline()
             result = pipeline.analyze(str(audio_path), AnalysisParams())
@@ -44,6 +46,7 @@ class PipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             audio_path = Path(td) / "b.wav"
             write_test_wav(audio_path)
+            os.environ["AUDIO_ROOT"] = td
 
             pipeline = SpeechTempoPipeline()
             result = pipeline.analyze(
@@ -61,6 +64,7 @@ class PipelineTests(unittest.TestCase):
             p2 = Path(td) / "s2.wav"
             write_test_wav(p1)
             write_test_wav(p2)
+            os.environ["AUDIO_ROOT"] = td
 
             pipeline = SpeechTempoPipeline()
             result = pipeline.compare(

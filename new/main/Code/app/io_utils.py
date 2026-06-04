@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import wave
 from pathlib import Path
 
@@ -7,9 +8,15 @@ import numpy as np
 
 
 def load_wav_mono(audio_path: str) -> tuple[np.ndarray, int]:
-    path = Path(audio_path)
-    if not path.exists():
+    root = Path(os.getenv("AUDIO_ROOT", os.getcwd())).resolve()
+    path = Path(audio_path).expanduser().resolve(strict=True)
+
+    if path.suffix.lower() != ".wav":
+        raise ValueError("Only .wav files are supported")
+    if not path.is_file():
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
+    if root not in path.parents and path != root:
+        raise ValueError(f"Audio path must be inside AUDIO_ROOT: {root}")
 
     with wave.open(str(path), "rb") as wf:
         sample_rate = wf.getframerate()

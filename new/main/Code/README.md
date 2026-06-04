@@ -17,6 +17,7 @@ cd /tmp/workspace/Altorazero/VKR/new/main/Code
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+export AUDIO_ROOT=/tmp/workspace/Altorazero/VKR/new/main/Code
 uvicorn app.main:app --reload
 ```
 
@@ -28,3 +29,4 @@ uvicorn app.main:app --reload
 
 ## Примечание
 В текущей версии используется fallback-пайплайн. Архитектура подготовлена для замены адаптеров на Silero VAD / Whisper / WhisperX.
+Для безопасности API обрабатывает только `.wav` файлы внутри директории `AUDIO_ROOT`.

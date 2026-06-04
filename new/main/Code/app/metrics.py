@@ -118,7 +118,9 @@ def fft_spectrum(times: np.ndarray, values: np.ndarray) -> tuple[np.ndarray, np.
 def wavelet_transform(values: np.ndarray, wavelet: str, min_scale: int, max_scale: int) -> tuple[np.ndarray, np.ndarray]:
     if values.size == 0:
         return np.array([]), np.array([[]])
-    scales = np.arange(max(1, min_scale), max(min_scale + 1, max_scale + 1))
+    scale_start = max(1, min_scale)
+    scale_end = max(scale_start + 1, max_scale + 1)
+    scales = np.arange(scale_start, scale_end)
     try:
         import pywt
 

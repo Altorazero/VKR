@@ -59,7 +59,7 @@ class SpeechTempoPipeline:
             "word_count": word_count,
             "speech_duration": speech_duration,
             "pause_duration": pause_summary["total_pause_duration"],
-            "speech_to_silence_ratio": float(speech_duration / max(pause_summary["total_pause_duration"], 1e-9)),
+            "speech_to_pause_ratio": float(speech_duration / max(pause_summary["total_pause_duration"], 1e-9)),
             "wpm": float(word_count / max(speech_duration, 1e-9) * 60.0),
             "words_per_second": float(word_count / max(speech_duration, 1e-9)),
             "params": asdict(params),
