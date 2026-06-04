@@ -1,0 +1,4 @@
+torch>=2.3,<3.0
+silero-vad>=5.1,<6.0
+openai-whisper>=20240930
+whisperx>=3.3,<4.0
