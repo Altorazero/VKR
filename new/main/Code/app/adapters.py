@@ -188,7 +188,7 @@ class RealWhisperXAligner:
         if duration <= 0:
             return []
 
-        language_code = _detect_language_code(reference_text)
+        language_code = _detect_ru_en_language_code(reference_text)
         if language_code not in self._align_models:
             model, metadata = whisperx.load_align_model(language_code=language_code, device=self.device)
             self._align_models[language_code] = (model, metadata)
@@ -303,7 +303,7 @@ def _resample_if_needed(audio: np.ndarray, sample_rate: int, target_rate: int) -
     return resampled.astype(np.float32)
 
 
-def _detect_language_code(text: str) -> str:
+def _detect_ru_en_language_code(text: str) -> str:
     has_cyrillic = bool(re.search(r"[\u0400-\u04FF]", text))
     return "ru" if has_cyrillic else "en"
 

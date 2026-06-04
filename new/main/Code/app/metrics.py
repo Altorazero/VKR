@@ -6,6 +6,10 @@ import numpy as np
 
 from .adapters import WordTiming
 
+LATIN_VOWELS = "aeiouy"
+CYRILLIC_VOWELS = "аеёиоуыэюя"
+SUPPORTED_VOWELS = LATIN_VOWELS + CYRILLIC_VOWELS
+
 
 def pauses_from_speech(speech_segments: list[tuple[float, float]], total_duration: float, min_pause_duration: float) -> list[tuple[float, float]]:
     pauses: list[tuple[float, float]] = []
@@ -135,8 +139,7 @@ def wavelet_transform(values: np.ndarray, wavelet: str, min_scale: int, max_scal
 def _word_units(word: str, unit: str) -> int:
     if unit == "words":
         return 1
-    vowels = "aeiouyаеёиоуыэюя"
-    syllables = sum(1 for ch in word.lower() if ch in vowels)
+    syllables = sum(1 for ch in word.lower() if ch in SUPPORTED_VOWELS)
     if unit == "syllables":
         return max(1, syllables)
     return max(1, len([ch for ch in word if ch.isalpha()]))
