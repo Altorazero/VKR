@@ -1,0 +1,1 @@
+"""Speech tempo analysis application."""

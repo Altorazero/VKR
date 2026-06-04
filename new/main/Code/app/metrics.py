@@ -1,0 +1,138 @@
+from __future__ import annotations
+
+from typing import Literal
+
+import numpy as np
+
+from .adapters import WordTiming
+
+
+def pauses_from_speech(speech_segments: list[tuple[float, float]], total_duration: float, min_pause_duration: float) -> list[tuple[float, float]]:
+    pauses: list[tuple[float, float]] = []
+    current = 0.0
+    for start, end in sorted(speech_segments):
+        if start - current >= min_pause_duration:
+            pauses.append((current, start))
+        current = max(current, end)
+    if total_duration - current >= min_pause_duration:
+        pauses.append((current, total_duration))
+    return pauses
+
+
+def summarize_pauses(pauses: list[tuple[float, float]], total_duration: float) -> dict:
+    durations = np.array([end - start for start, end in pauses], dtype=np.float64)
+    if durations.size == 0:
+        return {
+            "count": 0,
+            "mean": 0.0,
+            "median": 0.0,
+            "frequency_per_min": 0.0,
+            "distribution": [],
+            "total_pause_duration": 0.0,
+        }
+
+    return {
+        "count": int(durations.size),
+        "mean": float(durations.mean()),
+        "median": float(np.median(durations)),
+        "frequency_per_min": float(durations.size / max(1e-9, total_duration / 60.0)),
+        "distribution": durations.round(4).tolist(),
+        "total_pause_duration": float(durations.sum()),
+    }
+
+
+def build_tempo_series(
+    words: list[WordTiming],
+    total_duration: float,
+    unit: Literal["words", "syllables", "phonemes"],
+    window_size: float,
+    step: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    if total_duration <= 0:
+        return np.array([]), np.array([])
+
+    centers = np.arange(window_size / 2.0, total_duration + 1e-9, step)
+    values = np.zeros_like(centers)
+
+    for i, center in enumerate(centers):
+        left = center - window_size / 2.0
+        right = center + window_size / 2.0
+        selected = [w for w in words if w.start >= left and w.end <= right]
+        units = sum(_word_units(w.word, unit) for w in selected)
+        values[i] = units / max(window_size, 1e-9)
+
+    if unit == "words":
+        values = values * 60.0
+
+    return centers, values
+
+
+def smooth(values: np.ndarray, mode: str) -> np.ndarray:
+    if values.size == 0 or mode == "none":
+        return values
+    if mode == "moving_average":
+        kernel = np.ones(5, dtype=np.float64) / 5.0
+        return np.convolve(values, kernel, mode="same")
+    if mode == "gaussian":
+        try:
+            from scipy.ndimage import gaussian_filter1d
+
+            return gaussian_filter1d(values, sigma=1.0)
+        except Exception:
+            return values
+    return values
+
+
+def derivatives(times: np.ndarray, values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    if values.size < 2:
+        return np.zeros_like(values), np.zeros_like(values)
+    first = np.gradient(values, times)
+    second = np.gradient(first, times)
+    return first, second
+
+
+def acceleration_stats(first_derivative: np.ndarray) -> dict:
+    if first_derivative.size == 0:
+        return {"mean": 0.0, "std": 0.0, "accelerations": 0, "decelerations": 0}
+    return {
+        "mean": float(first_derivative.mean()),
+        "std": float(first_derivative.std()),
+        "accelerations": int(np.sum(first_derivative > 0)),
+        "decelerations": int(np.sum(first_derivative < 0)),
+    }
+
+
+def fft_spectrum(times: np.ndarray, values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    if values.size < 2:
+        return np.array([]), np.array([])
+    dt = float(np.mean(np.diff(times)))
+    centered = values - values.mean()
+    spec = np.fft.rfft(centered)
+    freqs = np.fft.rfftfreq(centered.size, d=dt)
+    magnitude = np.abs(spec)
+    return freqs, magnitude
+
+
+def wavelet_transform(values: np.ndarray, wavelet: str, min_scale: int, max_scale: int) -> tuple[np.ndarray, np.ndarray]:
+    if values.size == 0:
+        return np.array([]), np.array([[]])
+    scales = np.arange(max(1, min_scale), max(min_scale + 1, max_scale + 1))
+    try:
+        import pywt
+
+        coeffs, _freqs = pywt.cwt(values, scales, wavelet)
+        power = np.abs(coeffs)
+        return scales, power
+    except Exception:
+        power = np.tile(np.abs(values), (scales.size, 1))
+        return scales, power
+
+
+def _word_units(word: str, unit: str) -> int:
+    if unit == "words":
+        return 1
+    vowels = "aeiouyаеёиоуыэюя"
+    syllables = sum(1 for ch in word.lower() if ch in vowels)
+    if unit == "syllables":
+        return max(1, syllables)
+    return max(1, len([ch for ch in word if ch.isalpha()]))
