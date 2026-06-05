@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech Tempo Analysis</title>
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+            padding: 30px;
+        }
+
+        .sidebar {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .sidebar h2 {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+            font-size: 13px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 13px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 5px rgba(102, 126, 234, 0.2);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 13px;
+        }
+
+        .btn-analyze {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-analyze:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-analyze:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-reset {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-reset:hover {
+            background: #d0d0d0;
+        }
+
+        .charts-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .chart-wrapper {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            display: none;
+        }
+
+        .chart-wrapper.active {
+            display: block;
+        }
+
+        .chart-wrapper h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #667eea;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .chart {
+            width: 100%;
+            height: 400px;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            display: none;
+            font-size: 13px;
+        }
+
+        .status.show {
+            display: block;
+        }
+
+        .status.loading {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .status.success {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(25, 118, 210, 0.2);
+            border-radius: 50%;
+            border-top-color: #1976d2;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #e0e0e0;
+            overflow-x: auto;
+        }
+
+        .tab-btn {
+            padding: 10px 15px;
+            background: none;
+            border: none;
+            color: #666;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .tab-btn.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 3px solid #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎙️ Speech Tempo Analysis</h1>
+            <p>Анализ темпа художественной речи</p>
+        </header>
+
+        <div class="content">
+            <!-- Sidebar с формой -->
+            <div class="sidebar">
+                <h2>Параметры анализа</h2>
+                
+                <div class="status" id="status"></div>
+
+                <div class="form-group">
+                    <label for="audioPath">Путь к аудиофайлу (.wav)</label>
+                    <input type="text" id="audioPath" placeholder="например: test.wav" value="test.wav">
+                </div>
+
+                <div class="form-group">
+                    <label for="refText">Эталонный текст (опционально)</label>
+                    <textarea id="refText" placeholder="Оставьте пусто для анализа без текста" style="width: 100%; height: 80px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px; font-family: inherit; resize: vertical;"></textarea>
+                </div>
+
+                <details style="margin-bottom: 15px;">
+                    <summary style="cursor: pointer; font-weight: 500; color: #667eea; margin-bottom: 10px;">Расширенные параметры</summary>
+                    
+                    <div style="padding-top: 15px;">
+                        <div class="form-group">
+                            <label for="vadThreshold">VAD Threshold</label>
+                            <input type="number" id="vadThreshold" min="0" max="1" step="0.1" value="0.5">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="minPause">Min Pause Duration (сек)</label>
+                            <input type="number" id="minPause" min="0" max="1" step="0.1" value="0.3">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="windowSize">Window Size (сек)</label>
+                            <input type="number" id="windowSize" min="0.1" max="5" step="0.1" value="0.5">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="windowStep">Window Step (сек)</label>
+                            <input type="number" id="windowStep" min="0.01" max="1" step="0.01" value="0.1">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="smoothing">Smoothing</label>
+                            <select id="smoothing">
+                                <option value="hann">Hann</option>
+                                <option value="hamming">Hamming</option>
+                                <option value="blackman">Blackman</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="tempoUnit">Tempo Unit</label>
+                            <select id="tempoUnit">
+                                <option value="wpm">Words Per Minute (WPM)</option>
+                                <option value="words_per_sec">Words Per Second</option>
+                                <option value="syllables_per_sec">Syllables Per Second</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="wavelet">Wavelet</label>
+                            <select id="wavelet">
+                                <option value="morlet">Morlet</option>
+                                <option value="mexican_hat">Mexican Hat</option>
+                                <option value="ricker">Ricker</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="waveletScalesMin">Wavelet Scales Min</label>
+                            <input type="number" id="waveletScalesMin" min="1" value="1">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="waveletScalesMax">Wavelet Scales Max</label>
+                            <input type="number" id="waveletScalesMax" min="1" value="100">
+                        </div>
+                    </div>
+                </details>
+
+                <div class="btn-group">
+                    <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">Анализировать</button>
+                    <button class="btn-reset" onclick="resetForm()">Сброс</button>
+                </div>
+            </div>
+
+            <!-- Графики -->
+            <div class="charts-container" id="chartsContainer">
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchTab('summary')">Сводка</button>
+                    <button class="tab-btn" onclick="switchTab('tempo')">Темп</button>
+                    <button class="tab-btn" onclick="switchTab('spectrum')">Спектр</button>
+                    <button class="tab-btn" onclick="switchTab('wavelet')">Wavelet</button>
+                </div>
+
+                <!-- Summary Tab -->
+                <div id="summary" class="tab-content active">
+                    <div class="stats" id="statsContainer"></div>
+                </div>
+
+                <!-- Tempo Tab -->
+                <div id="tempo" class="tab-content">
+                    <div class="chart-wrapper active">
+                        <h3>📈 Темп во времени</h3>
+                        <div class="chart" id="tempoChart"></div>
+                    </div>
+                    <div class="chart-wrapper active">
+                        <h3>⚡ Ускорения и замедления</h3>
+                        <div class="chart" id="accelerationChart"></div>
+                    </div>
+                </div>
+
+                <!-- Spectrum Tab -->
+                <div id="spectrum" class="tab-content">
+                    <div class="chart-wrapper active">
+                        <h3>🔊 FFT Анализ</h3>
+                        <div class="chart" id="fftChart"></div>
+                    </div>
+                </div>
+
+                <!-- Wavelet Tab -->
+                <div id="wavelet" class="tab-content">
+                    <div class="chart-wrapper active">
+                        <h3>🌊 Wavelet Анализ</h3>
+                        <div class="chart" id="waveletChart"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.className = `status show ${type}`;
+            
+            if (type === 'loading') {
+                status.innerHTML = `<span class="spinner"></span>${message}`;
+            } else {
+                status.textContent = message;
+            }
+        }
+
+        function hideStatus() {
+            document.getElementById('status').classList.remove('show');
+        }
+
+        async function analyze() {
+            const audioPath = document.getElementById('audioPath').value;
+            
+            if (!audioPath) {
+                showStatus('❌ Укажите путь к аудиофайлу', 'error');
+                return;
+            }
+
+            const refText = document.getElementById('refText').value;
+            const params = {
+                vad_threshold: parseFloat(document.getElementById('vadThreshold').value),
+                min_pause_duration: parseFloat(document.getElementById('minPause').value),
+                window_size: parseFloat(document.getElementById('windowSize').value),
+                window_step: parseFloat(document.getElementById('windowStep').value),
+                smoothing: document.getElementById('smoothing').value,
+                tempo_unit: document.getElementById('tempoUnit').value,
+                wavelet: document.getElementById('wavelet').value,
+                wavelet_scales_min: parseInt(document.getElementById('waveletScalesMin').value),
+                wavelet_scales_max: parseInt(document.getElementById('waveletScalesMax').value)
+            };
+
+            const btn = document.getElementById('analyzeBtn');
+            btn.disabled = true;
+            showStatus('⏳ Анализирую аудиофайл...', 'loading');
+
+            try {
+                let endpoint = '/analyze';
+                let payload = { audio_path: audioPath, params };
+
+                if (refText) {
+                    endpoint = '/analyze-with-text';
+                    payload.reference_text = refText;
+                }
+
+                const response = await fetch(`http://localhost:8000${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                displayResults(data);
+                showStatus('✅ Анализ завершен успешно!', 'success');
+                hideStatus();
+            } catch (error) {
+                showStatus(`❌ Ошибка: ${error.message}`, 'error');
+                console.error(error);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function displayResults(data) {
+            // Отображаем статистику
+            displayStats(data.summary);
+
+            // Отображаем графики
+            if (data.charts) {
+                if (data.charts.tempo_timeline) {
+                    Plotly.newPlot('tempoChart', 
+                        data.charts.tempo_timeline.data,
+                        data.charts.tempo_timeline.layout,
+                        { responsive: true }
+                    );
+                }
+
+                if (data.charts.acceleration) {
+                    Plotly.newPlot('accelerationChart',
+                        data.charts.acceleration.data,
+                        data.charts.acceleration.layout,
+                        { responsive: true }
+                    );
+                }
+
+                if (data.charts.fft_spectrum) {
+                    Plotly.newPlot('fftChart',
+                        data.charts.fft_spectrum.data,
+                        data.charts.fft_spectrum.layout,
+                        { responsive: true }
+                    );
+                }
+
+                if (data.charts.wavelet) {
+                    Plotly.newPlot('waveletChart',
+                        data.charts.wavelet.data,
+                        data.charts.wavelet.layout,
+                        { responsive: true }
+                    );
+                }
+            }
+        }
+
+        function displayStats(summary) {
+            const container = document.getElementById('statsContainer');
+            
+            const stats = [
+                { label: 'Темп (WPM)', value: summary.metrics?.avg_tempo?.toFixed(1) || 'N/A' },
+                { label: 'Слов', value: summary.metrics?.total_words || 'N/A' },
+                { label: 'Слогов', value: summary.metrics?.total_syllables || 'N/A' },
+                { label: 'Длительность речи', value: `${(summary.metrics?.speech_duration || 0).toFixed(2)}s` },
+                { label: 'Длительность пауз', value: `${(summary.metrics?.pause_duration || 0).toFixed(2)}s` },
+                { label: 'Кол-во пауз', value: summary.metrics?.num_pauses || 'N/A' }
+            ];
+
+            container.innerHTML = stats.map(stat => `
+                <div class="stat-card">
+                    <div class="stat-label">${stat.label}</div>
+                    <div class="stat-value">${stat.value}</div>
+                </div>
+            `).join('');
+        }
+
+        function switchTab(tabName) {
+            // Скрываем все табы
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Убираем активное состояние со всех кнопок
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Показываем нужный таб
+            document.getElementById(tabName).classList.add('active');
+
+            // Активируем нужную кнопку
+            event.target.classList.add('active');
+        }
+
+        function resetForm() {
+            document.getElementById('audioPath').value = 'test.wav';
+            document.getElementById('refText').value = '';
+            document.getElementById('vadThreshold').value = '0.5';
+            document.getElementById('minPause').value = '0.3';
+            document.getElementById('windowSize').value = '0.5';
+            document.getElementById('windowStep').value = '0.1';
+            document.getElementById('smoothing').value = 'hann';
+            document.getElementById('tempoUnit').value = 'wpm';
+            document.getElementById('wavelet').value = 'morlet';
+            document.getElementById('waveletScalesMin').value = '1';
+            document.getElementById('waveletScalesMax').value = '100';
+            hideStatus();
+        }
+
+        // Проверяем здоровье API при загрузке страницы
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch('http://localhost:8000/health');
+                if (response.ok) {
+                    showStatus('✅ API подключен', 'success');
+                    setTimeout(hideStatus, 2000);
+                }
+            } catch (error) {
+                showStatus('❌ Ошибка подключения к API. Убедитесь, что сервер запущен на http://localhost:8000', 'error');
+            }
+        });
+    </script>
+</body>
+</html>
