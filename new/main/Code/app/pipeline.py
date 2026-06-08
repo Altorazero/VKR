@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from typing import Any
+import numpy as np
 
 from .adapters import ASRAdapter, AlignerAdapter, VADAdapter
 from .config import AnalysisParams
@@ -39,18 +40,52 @@ class SpeechTempoPipeline:
             else self.asr.transcribe(resolved_audio_path, audio, sample_rate, speech)
         )
 
-        time, tempo = build_tempo_series(
-            words=words,
-            total_duration=total_duration,
-            unit=params.tempo_unit,
-            window_size=params.window_size,
-            step=params.window_step,
-        )
-        tempo_smoothed = smooth(tempo, params.smoothing)
-        d1, d2 = derivatives(time, tempo_smoothed)
-        freqs, mag = fft_spectrum(time, tempo_smoothed)
+        # Анализ для 4-х разных режимов
+        modes = [
+            ("window", "words", "WPM (Window)"),
+            ("event", "words", "WPM (Words)"),
+            ("event", "syllables", "Syllables/s"),
+            ("event", "phonemes", "Letters/s"),
+        ]
+        
+        all_series = {}
+        all_visuals = {}
+
+        for mode_name, unit, y_label in modes:
+            time, tempo, labels = build_tempo_series(
+                words=words,
+                total_duration=total_duration,
+                unit=unit,
+                window_size=params.window_size,
+                step=0.5, # Фиксированный шаг для консистентности
+                mode=mode_name,
+            )
+            tempo_smoothed = smooth(tempo, params.smoothing)
+            d1, d2 = derivatives(time, tempo_smoothed)
+            
+            key = f"{mode_name}_{unit}"
+            all_series[key] = {
+                "time": time.tolist(),
+                "tempo": tempo_smoothed.tolist(),
+                "d1": d1.tolist(),
+                "labels": labels
+            }
+            
+            all_visuals[f"timeline_{key}"] = tempo_figure(
+                time.tolist(),
+                tempo_smoothed.tolist(),
+                d1.tolist(),
+                [[a, b] for a, b in speech],
+                [[a, b] for a, b in pauses],
+                labels=labels if mode_name == "event" else None,
+                y_label=y_label
+            )
+
+        # Используем первый режим (window_words) для FFT и Wavelet по умолчанию
+        main_series = all_series["window_words"]
+        freqs, mag = fft_spectrum(np.array(main_series["time"]), np.array(main_series["tempo"]))
         scales, power = wavelet_transform(
-            tempo_smoothed,
+            np.array(main_series["tempo"]),
             wavelet=params.wavelet,
             min_scale=params.wavelet_scales_min,
             max_scale=params.wavelet_scales_max,
@@ -68,7 +103,7 @@ class SpeechTempoPipeline:
             "wpm": float(word_count / max(speech_duration, 1e-9) * 60.0),
             "words_per_second": float(word_count / max(speech_duration, 1e-9)),
             "params": asdict(params),
-            "acceleration_stats": acceleration_stats(d1),
+            "acceleration_stats": acceleration_stats(np.array(main_series["d1"])),
             "adapters": {
                 "vad": self.vad.backend,
                 "asr": self.asr.backend,
@@ -81,32 +116,22 @@ class SpeechTempoPipeline:
             word_values = []
             for w in words:
                 dur = max(1e-6, w.end - w.start)
-                if params.tempo_unit == "words":
-                    word_values.append(float(60.0 / dur))
-                else:
-                    word_values.append(float(1.0 / dur))
+                word_values.append(float(60.0 / dur))
             heatmap = {
                 "words": [w.word for w in words],
                 "values": word_values,
                 "figure": text_heatmap([w.word for w in words], word_values),
             }
 
-        visuals = {
-            "timeline": tempo_figure(
-                time.tolist(),
-                tempo_smoothed.tolist(),
-                d1.tolist(),
-                [[a, b] for a, b in speech],
-                [[a, b] for a, b in pauses],
-            ),
+        all_visuals.update({
             "fft": spectrum_figure(freqs.tolist(), mag.tolist()),
-            "wavelet": wavelet_figure(scales.tolist(), power.tolist(), time.tolist()),
-        }
+            "wavelet": wavelet_figure(scales.tolist(), power.tolist(), main_series["time"]),
+        })
 
         return {
             "summary": summary,
-            "tempo_series": {"time": time.tolist(), "tempo": tempo_smoothed.tolist()},
-            "derivatives": {"first": d1.tolist(), "second": d2.tolist()},
+            "words": [{"word": w.word, "start": w.start, "end": w.end} for w in words],
+            "all_series": all_series,
             "pauses": {
                 "segments": [[a, b] for a, b in pauses],
                 "stats": pause_summary,
@@ -114,7 +139,7 @@ class SpeechTempoPipeline:
             "spectrum_fft": {"frequency": freqs.tolist(), "magnitude": mag.tolist()},
             "wavelet": {"scales": scales.tolist(), "power": power.tolist()},
             "text_heatmap": heatmap,
-            "visuals": visuals,
+            "visuals": all_visuals,
         }
 
     def compare(self, items: list[dict[str, Any]], params: AnalysisParams) -> dict[str, Any]:
@@ -129,11 +154,13 @@ class SpeechTempoPipeline:
                     "pause_stats": result["pauses"]["stats"],
                 }
             )
+            # Для сравнения используем режим оконных слов
+            main_s = result["all_series"]["window_words"]
             series.append(
                 {
                     "label": item["label"],
-                    "time": result["tempo_series"]["time"],
-                    "tempo": result["tempo_series"]["tempo"],
+                    "time": main_s["time"],
+                    "tempo": main_s["tempo"],
                 }
             )
 

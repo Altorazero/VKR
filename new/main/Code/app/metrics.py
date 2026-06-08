@@ -51,10 +51,47 @@ def build_tempo_series(
     unit: Literal["words", "syllables", "phonemes"],
     window_size: float,
     step: float,
-) -> tuple[np.ndarray, np.ndarray]:
-    if total_duration <= 0:
-        return np.array([]), np.array([])
+    mode: Literal["window", "event"] = "window",
+) -> tuple[np.ndarray, np.ndarray, list[str]]:
+    if total_duration <= 0 or not words:
+        return np.array([]), np.array([]), []
 
+    if mode == "event":
+        times = []
+        values = []
+        labels = []
+        for w in words:
+            units = _word_units(w.word, unit)
+            duration = max(0.01, w.end - w.start)
+            
+            if units > 1 and unit != "words":
+                # Генерируем суб-метки в зависимости от типа (слоги или фонемы/буквы)
+                if unit == "syllables":
+                    sub_labels = _split_to_syllables(w.word)
+                else: # phonemes (буквы)
+                    sub_labels = [c for c in w.word if c.isalpha()]
+                
+                unit_duration = duration / units
+                for j in range(1, units + 1):
+                    sub_end = w.start + j * unit_duration
+                    tempo = 1.0 / unit_duration
+                    times.append(sub_end)
+                    values.append(tempo)
+                    
+                    if j-1 < len(sub_labels):
+                        labels.append(sub_labels[j-1])
+                    else:
+                        labels.append(f".") # Короткая точка вместо повтора слова
+            else:
+                tempo = units / duration
+                if unit == "words":
+                    tempo *= 60.0
+                times.append(w.end)
+                values.append(tempo)
+                labels.append(w.word)
+        return np.array(times), np.array(values), labels
+
+    # Режим окна (labels не используются)
     centers = np.arange(window_size / 2.0, total_duration + 1e-9, step)
     values = np.zeros_like(centers)
 
@@ -68,7 +105,26 @@ def build_tempo_series(
     if unit == "words":
         values = values * 60.0
 
-    return centers, values
+    return centers, values, []
+
+
+def _split_to_syllables(word: str) -> list[str]:
+    """Разбивает слово на слоги по гласным."""
+    if not word:
+        return []
+    res = []
+    current = ""
+    for char in word:
+        current += char
+        if char.lower() in SUPPORTED_VOWELS:
+            res.append(current)
+            current = ""
+    if current:
+        if res:
+            res[-1] += current
+        else:
+            res.append(current)
+    return res
 
 
 def smooth(values: np.ndarray, mode: str) -> np.ndarray:

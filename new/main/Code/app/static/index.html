@@ -5,595 +5,344 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Speech Tempo Analysis</title>
     <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/spectrogram.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); overflow: hidden; }
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }
+        header h1 { font-size: 28px; margin-bottom: 5px; }
+        .content { display: grid; grid-template-columns: 350px 1fr; gap: 20px; padding: 25px; }
+        .sidebar { background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0; display: flex; flex-direction: column; gap: 20px; }
+        .sidebar-section { background: white; padding: 15px; border-radius: 8px; border: 1px solid #eee; }
+        .sidebar h2 { font-size: 16px; margin-bottom: 15px; color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; color: #444; font-size: 13px; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; transition: border-color 0.3s; }
+        .form-group input:focus, .form-group textarea:focus { border-color: #667eea; outline: none; }
+        
+        .btn-group { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+        button { padding: 10px 15px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        button:active { transform: translateY(1px); }
+        .btn-analyze { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; width: 100%; font-size: 14px; padding: 12px; margin-top: 10px; }
+        .btn-reset { background: #f0f0f0; color: #555; border: 1px solid #ddd; }
+        .btn-reset:hover { background: #e8e8e8; }
+        .btn-record { background: #ff4b2b; color: white; flex: 1; font-size: 14px; }
+        .btn-record.active { background: #d32f2f; animation: pulse 1.5s infinite; }
+        
+        .charts-container { display: flex; flex-direction: column; gap: 20px; }
+        .chart-wrapper { background: #f8f9fa; border-radius: 8px; padding: 20px; border: 1px solid #e0e0e0; position: relative; }
+        .chart-wrapper h3 { font-size: 15px; margin-bottom: 15px; color: #444; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .chart-wrapper h3::before { content: ''; display: inline-block; width: 4px; height: 18px; background: #667eea; border-radius: 2px; }
+        .chart { width: 100%; height: 350px; }
+        
+        .status { padding: 12px; border-radius: 6px; margin-bottom: 15px; display: none; font-size: 13px; font-weight: 500; }
+        .status.show { display: block; }
+        .status.loading { background: #e3f2fd; color: #1976d2; border: 1px solid #bbdefb; }
+        .status.success { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+        .status.error { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+        
+        .tabs { display: flex; gap: 5px; margin-bottom: 0; border-bottom: 2px solid #f0f0f0; }
+        .tab-btn { padding: 12px 20px; background: none; border: none; color: #888; font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent; border-radius: 0; transition: 0.3s; font-size: 13px; }
+        .tab-btn:hover { color: #667eea; background: #f8f9fa; }
+        .tab-btn.active { color: #667eea; border-bottom-color: #667eea; background: #f0f4ff; }
+        .tab-content { display: none; padding-top: 20px; }
+        .tab-content.active { display: block; }
+        
+        .history-list { max-height: 300px; overflow-y: auto; background: #fff; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; }
+        .history-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 13px; transition: 0.2s; position: relative; }
+        .history-item:hover { background: #f0f4ff; }
+        .history-item.active { background: #e8eeff; border-left: 4px solid #667eea; padding-left: 8px; }
+        .history-item .date { font-size: 11px; color: #aaa; display: block; margin-top: 4px; }
+        .history-item .actions { position: absolute; top: 12px; right: 10px; display: none; gap: 5px; }
+        .history-item:hover .actions { display: flex; }
+        
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-top: 20px; }
+        .stat-card { background: white; padding: 15px; border-radius: 8px; border: 1px solid #eee; box-shadow: 0 2px 8px rgba(0,0,0,0.04); transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); }
+        .stat-label { font-size: 12px; color: #888; text-transform: uppercase; margin-bottom: 5px; font-weight: 600; }
+        .stat-value { font-size: 20px; font-weight: 800; color: #333; }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
+        #waveform-container { background: #fdfdfd; padding: 15px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 10px; }
+        #waveform { width: 100%; height: 100px; }
+        #spectrogram { width: 100%; height: 150px; margin-top: 5px; border-radius: 4px; overflow: hidden; }
+        .player-controls { display: flex; align-items: center; gap: 15px; margin-top: 10px; padding: 5px 10px; background: #f8f9fa; border-radius: 6px; }
+        .player-btn { background: #667eea; color: white; width: 40px; height: 40px; border-radius: 50%; padding: 0; }
+        .time-display { font-family: monospace; font-size: 14px; color: #555; font-weight: bold; }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-            overflow: hidden;
-        }
+        .transcript-box { background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 15px; min-height: 100px; max-height: 300px; overflow-y: auto; line-height: 1.6; font-size: 14px; color: #444; }
+        .word-span { cursor: pointer; border-bottom: 2px solid transparent; transition: 0.2s; padding: 0 2px; }
+        .word-span:hover { background: #f0f4ff; border-bottom-color: #667eea; }
+        .word-span.active { background: #ffff00; color: #000; }
 
-        header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-
-        header h1 {
-            font-size: 32px;
-            margin-bottom: 10px;
-        }
-
-        header p {
-            font-size: 14px;
-            opacity: 0.9;
-        }
-
-        .content {
-            display: grid;
-            grid-template-columns: 1fr 2fr;
-            gap: 20px;
-            padding: 30px;
-        }
-
-        .sidebar {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #e0e0e0;
-        }
-
-        .sidebar h2 {
-            font-size: 18px;
-            margin-bottom: 20px;
-            color: #667eea;
-            border-bottom: 2px solid #667eea;
-            padding-bottom: 10px;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-            color: #333;
-            font-size: 13px;
-        }
-
-        .form-group input,
-        .form-group select {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 13px;
-            transition: border-color 0.3s;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 5px rgba(102, 126, 234, 0.2);
-        }
-
-        .btn-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        button {
-            flex: 1;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 5px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-size: 13px;
-        }
-
-        .btn-analyze {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-analyze:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-analyze:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .btn-reset {
-            background: #e0e0e0;
-            color: #333;
-        }
-
-        .btn-reset:hover {
-            background: #d0d0d0;
-        }
-
-        .charts-container {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .chart-wrapper {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 15px;
-            border: 1px solid #e0e0e0;
-            display: none;
-        }
-
-        .chart-wrapper.active {
-            display: block;
-        }
-
-        .chart-wrapper h3 {
-            font-size: 14px;
-            margin-bottom: 10px;
-            color: #667eea;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .chart {
-            width: 100%;
-            height: 400px;
-        }
-
-        .status {
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 15px;
-            display: none;
-            font-size: 13px;
-        }
-
-        .status.show {
-            display: block;
-        }
-
-        .status.loading {
-            background: #e3f2fd;
-            color: #1976d2;
-        }
-
-        .status.success {
-            background: #e8f5e9;
-            color: #388e3c;
-        }
-
-        .status.error {
-            background: #ffebee;
-            color: #d32f2f;
-        }
-
-        .spinner {
-            display: inline-block;
-            width: 14px;
-            height: 14px;
-            border: 2px solid rgba(25, 118, 210, 0.2);
-            border-radius: 50%;
-            border-top-color: #1976d2;
-            animation: spin 0.8s linear infinite;
-            margin-right: 8px;
-            vertical-align: middle;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #e0e0e0;
-            overflow-x: auto;
-        }
-
-        .tab-btn {
-            padding: 10px 15px;
-            background: none;
-            border: none;
-            color: #666;
-            font-weight: 500;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: all 0.3s;
-            white-space: nowrap;
-        }
-
-        .tab-btn.active {
-            color: #667eea;
-            border-bottom-color: #667eea;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-top: 15px;
-        }
-
-        .stat-card {
-            background: white;
-            padding: 15px;
-            border-radius: 5px;
-            border-left: 3px solid #667eea;
-        }
-
-        .stat-label {
-            font-size: 12px;
-            color: #999;
-            text-transform: uppercase;
-            margin-bottom: 5px;
-        }
-
-        .stat-value {
-            font-size: 18px;
-            font-weight: bold;
-            color: #333;
-        }
-
-        @media (max-width: 768px) {
-            .content {
-                grid-template-columns: 1fr;
-            }
-        }
+        @media (max-width: 1100px) { .content { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <h1>🎙️ Speech Tempo Analysis</h1>
-            <p>Анализ темпа художественной речи</p>
+            <p>Интеллектуальный анализ темпа и ритмики речи</p>
         </header>
-
         <div class="content">
-            <!-- Sidebar с формой -->
             <div class="sidebar">
-                <h2>Параметры анализа</h2>
-                
-                <div class="status" id="status"></div>
-
-                <div class="form-group">
-                    <label for="audioPath">Путь к аудиофайлу (.wav)</label>
-                    <input type="text" id="audioPath" placeholder="например: test.wav" value="test.wav">
-                </div>
-
-                <div class="form-group">
-                    <label for="refText">Эталонный текст (опционально)</label>
-                    <textarea id="refText" placeholder="Оставьте пусто для анализа без текста" style="width: 100%; height: 80px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px; font-family: inherit; resize: vertical;"></textarea>
-                </div>
-
-                <details style="margin-bottom: 15px;">
-                    <summary style="cursor: pointer; font-weight: 500; color: #667eea; margin-bottom: 10px;">Расширенные параметры</summary>
-                    
-                    <div style="padding-top: 15px;">
+                <div class="sidebar-section">
+                    <h2>Анализ</h2>
+                    <div class="form-group">
+                        <label for="refText">Эталонный текст</label>
+                        <textarea id="refText" style="height: 120px; resize: vertical;" onblur="autoSaveText()"></textarea>
+                    </div>
+                    <div class="tabs" style="font-size: 11px; margin-bottom: 10px;">
+                         <button class="tab-btn active" id="sideTabTranscript" style="padding: 8px 12px;">Распознанный текст</button>
+                         <button class="tab-btn" id="sideTabParams" style="padding: 8px 12px;">Настройки</button>
+                    </div>
+                    <div id="sideContentTranscript" class="tab-content active" style="padding-top: 0;">
+                        <div class="transcript-box" id="transcriptContainer">Выберите запись и проведите анализ</div>
+                    </div>
+                    <div id="sideContentParams" class="tab-content" style="padding-top: 0;">
                         <div class="form-group">
-                            <label for="vadThreshold">VAD Threshold</label>
-                            <input type="number" id="vadThreshold" min="0" max="1" step="0.1" value="0.5">
+                            <label>VAD Threshold: <span id="vadVal">0.02</span></label>
+                            <input type="range" id="vadThreshold" min="0.01" max="0.5" step="0.01" value="0.02" oninput="vadVal.innerText=this.value">
                         </div>
-
                         <div class="form-group">
-                            <label for="minPause">Min Pause Duration (сек)</label>
-                            <input type="number" id="minPause" min="0" max="1" step="0.1" value="0.3">
+                            <label>Мин. пауза (сек): <span id="pauseVal">0.2</span></label>
+                            <input type="range" id="minPause" min="0.1" max="2.0" step="0.1" value="0.2" oninput="pauseVal.innerText=this.value">
                         </div>
-
                         <div class="form-group">
-                            <label for="windowSize">Window Size (сек)</label>
-                            <input type="number" id="windowSize" min="0.1" max="5" step="0.1" value="0.5">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="windowStep">Window Step (сек)</label>
-                            <input type="number" id="windowStep" min="0.01" max="1" step="0.01" value="0.1">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="smoothing">Smoothing</label>
-                            <select id="smoothing">
-                                <option value="hann">Hann</option>
-                                <option value="hamming">Hamming</option>
-                                <option value="blackman">Blackman</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="tempoUnit">Tempo Unit</label>
-                            <select id="tempoUnit">
-                                <option value="wpm">Words Per Minute (WPM)</option>
-                                <option value="words_per_sec">Words Per Second</option>
-                                <option value="syllables_per_sec">Syllables Per Second</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="wavelet">Wavelet</label>
-                            <select id="wavelet">
-                                <option value="morlet">Morlet</option>
-                                <option value="mexican_hat">Mexican Hat</option>
-                                <option value="ricker">Ricker</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="waveletScalesMin">Wavelet Scales Min</label>
-                            <input type="number" id="waveletScalesMin" min="1" value="1">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="waveletScalesMax">Wavelet Scales Max</label>
-                            <input type="number" id="waveletScalesMax" min="1" value="100">
+                            <label>Окно (сек): <span id="winVal">3.0</span></label>
+                            <input type="range" id="windowSize" min="0.5" max="10.0" step="0.5" value="3.0" oninput="winVal.innerText=this.value">
                         </div>
                     </div>
-                </details>
-
-                <div class="btn-group">
-                    <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">Анализировать</button>
-                    <button class="btn-reset" onclick="resetForm()">Сброс</button>
+                    <button class="btn-analyze" id="analyzeBtn">🚀 Анализировать</button>
+                    <div class="status" id="status" style="margin-top: 15px;"></div>
+                </div>
+                <div class="sidebar-section">
+                    <h2>История записей</h2>
+                    <div class="history-list" id="historyContainer">
+                        <p style="text-align: center; color: #999; padding: 20px;">Загрузка...</p>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn-reset" onclick="loadHistory()" title="Обновить список">🔄 Обновить</button>
+                        <button class="btn-reset" onclick="clearDatabase()" style="background:#fff0f0; color:#c00; border-color: #ffcdd2;">🧹 Очистить БД</button>
+                    </div>
+                </div>
+                <div class="sidebar-section">
+                    <h2>Новая запись</h2>
+                    <div class="form-group">
+                        <label for="authorName">Название аудиозаписи</label>
+                        <input type="text" id="authorName" placeholder="Напр. Пушкин_ЕО_1">
+                    </div>
+                    <button class="btn-record" id="recordBtn">🔴 Начать запись</button>
                 </div>
             </div>
-
-            <!-- Графики -->
-            <div class="charts-container" id="chartsContainer">
+            
+            <div class="charts-container">
                 <div class="tabs">
-                    <button class="tab-btn active" onclick="switchTab('summary')">Сводка</button>
-                    <button class="tab-btn" onclick="switchTab('tempo')">Темп</button>
-                    <button class="tab-btn" onclick="switchTab('spectrum')">Спектр</button>
-                    <button class="tab-btn" onclick="switchTab('wavelet')">Wavelet</button>
+                    <button class="tab-btn active" id="tabSummary">📊 Сводка</button>
+                    <button class="tab-btn" id="tabGraphs">📈 Графики</button>
+                    <button class="tab-btn" id="tabSpectrum">🔊 Спектр / Wavelet</button>
                 </div>
-
-                <!-- Summary Tab -->
-                <div id="summary" class="tab-content active">
-                    <div class="stats" id="statsContainer"></div>
+                <div id="contentSummary" class="tab-content active">
+                    <div id="waveform-container">
+                        <div id="waveform"></div>
+                        <div id="spectrogram"></div>
+                        <div class="player-controls">
+                            <button class="player-btn" id="playPauseBtn">▶</button>
+                            <div class="time-display"><span id="currentTime">0:00</span> / <span id="duration">0:00</span></div>
+                            <div style="flex-grow: 1;"></div>
+                            <div class="form-group" style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                                <label style="margin: 0;">Скорость:</label>
+                                <select id="playbackSpeed" style="padding: 4px; width: 70px;">
+                                    <option value="0.5">0.5x</option>
+                                    <option value="0.8">0.8x</option>
+                                    <option value="1" selected>1.0x</option>
+                                    <option value="1.2">1.2x</option>
+                                    <option value="1.5">1.5x</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stats" id="statsContainer">
+                        <div class="stat-card"><div class="stat-label">WPM (Средний)</div><div class="stat-value" id="valWpm">-</div></div>
+                        <div class="stat-card"><div class="stat-label">Слов</div><div class="stat-value" id="valWords">-</div></div>
+                        <div class="stat-card"><div class="stat-label">Речь (сек)</div><div class="stat-value" id="valSpeech">-</div></div>
+                        <div class="stat-card"><div class="stat-label">Паузы (сек)</div><div class="stat-value" id="valPauses">-</div></div>
+                    </div>
                 </div>
-
-                <!-- Tempo Tab -->
-                <div id="tempo" class="tab-content">
-                    <div class="chart-wrapper active">
-                        <h3>📈 Темп во времени</h3>
-                        <div class="chart" id="tempoChart"></div>
-                    </div>
-                    <div class="chart-wrapper active">
-                        <h3>⚡ Ускорения и замедления</h3>
-                        <div class="chart" id="accelerationChart"></div>
-                    </div>
+                <div id="contentGraphs" class="tab-content">
+                    <div class="chart-wrapper"><div class="chart" id="chartWindow"></div></div>
+                    <div class="chart-wrapper"><div class="chart" id="chartWords"></div></div>
+                    <div class="chart-wrapper"><div class="chart" id="chartSyllables"></div></div>
+                    <div class="chart-wrapper"><div class="chart" id="chartPhonemes"></div></div>
                 </div>
-
-                <!-- Spectrum Tab -->
-                <div id="spectrum" class="tab-content">
-                    <div class="chart-wrapper active">
-                        <h3>🔊 FFT Анализ</h3>
-                        <div class="chart" id="fftChart"></div>
-                    </div>
-                </div>
-
-                <!-- Wavelet Tab -->
-                <div id="wavelet" class="tab-content">
-                    <div class="chart-wrapper active">
-                        <h3>🌊 Wavelet Анализ</h3>
-                        <div class="chart" id="waveletChart"></div>
-                    </div>
+                <div id="contentSpectrum" class="tab-content">
+                    <div class="chart-wrapper"><div class="chart" id="fftChart"></div></div>
+                    <div class="chart-wrapper"><div class="chart" id="waveletChart"></div></div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        function showStatus(message, type = 'info') {
-            const status = document.getElementById('status');
-            status.className = `status show ${type}`;
-            
-            if (type === 'loading') {
-                status.innerHTML = `<span class="spinner"></span>${message}`;
-            } else {
-                status.textContent = message;
-            }
+        let mediaRecorder, audioChunks = [], currentSelectedPath = "", wavesurfer, analysisData = null, historyCache = [];
+
+        function initWaveSurfer() {
+            if (wavesurfer) wavesurfer.destroy();
+            wavesurfer = WaveSurfer.create({
+                container: '#waveform', waveColor: '#667eea', progressColor: '#764ba2', cursorColor: '#ff4b2b',
+                barWidth: 2, barRadius: 3, responsive: true, height: 100,
+                plugins: [WaveSurfer.Spectrogram.create({ container: '#spectrogram', labels: true, height: 150, splitChannels: false })]
+            });
+            wavesurfer.on('audioprocess', updateTime);
+            wavesurfer.on('ready', () => { document.getElementById('duration').textContent = formatTime(wavesurfer.getDuration()); });
+            wavesurfer.on('play', () => document.getElementById('playPauseBtn').textContent = '||');
+            wavesurfer.on('pause', () => document.getElementById('playPauseBtn').textContent = '▶');
         }
 
-        function hideStatus() {
-            document.getElementById('status').classList.remove('show');
-        }
+        function formatTime(s) { const min = Math.floor(s / 60); const sec = Math.floor(s % 60); return `${min}:${sec.toString().padStart(2, '0')}`; }
 
-        async function analyze() {
-            const audioPath = document.getElementById('audioPath').value;
-            
-            if (!audioPath) {
-                showStatus('❌ Укажите путь к аудиофайлу', 'error');
-                return;
-            }
-
-            const refText = document.getElementById('refText').value;
-            const params = {
-                vad_threshold: parseFloat(document.getElementById('vadThreshold').value),
-                min_pause_duration: parseFloat(document.getElementById('minPause').value),
-                window_size: parseFloat(document.getElementById('windowSize').value),
-                window_step: parseFloat(document.getElementById('windowStep').value),
-                smoothing: document.getElementById('smoothing').value,
-                tempo_unit: document.getElementById('tempoUnit').value,
-                wavelet: document.getElementById('wavelet').value,
-                wavelet_scales_min: parseInt(document.getElementById('waveletScalesMin').value),
-                wavelet_scales_max: parseInt(document.getElementById('waveletScalesMax').value)
-            };
-
-            const btn = document.getElementById('analyzeBtn');
-            btn.disabled = true;
-            showStatus('⏳ Анализирую аудиофайл...', 'loading');
-
-            try {
-                let endpoint = '/analyze';
-                let payload = { audio_path: audioPath, params };
-
-                if (refText) {
-                    endpoint = '/analyze-with-text';
-                    payload.reference_text = refText;
-                }
-
-                const response = await fetch(`http://localhost:8000${endpoint}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+        function updateTime() {
+            const current = wavesurfer.getCurrentTime();
+            document.getElementById('currentTime').textContent = formatTime(current);
+            if (analysisData && analysisData.words) {
+                const spans = document.querySelectorAll('.word-span');
+                analysisData.words.forEach((w, i) => {
+                    if (current >= w.start && current <= w.end) {
+                        spans[i]?.classList.add('active');
+                        spans[i]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    } else spans[i]?.classList.remove('active');
                 });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                displayResults(data);
-                showStatus('✅ Анализ завершен успешно!', 'success');
-                hideStatus();
-            } catch (error) {
-                showStatus(`❌ Ошибка: ${error.message}`, 'error');
-                console.error(error);
-            } finally {
-                btn.disabled = false;
             }
+        }
+
+        async function autoSaveText() {
+            if (!currentSelectedPath) return;
+            const text = document.getElementById('refText').value;
+            const item = historyCache.find(i => i.path === currentSelectedPath);
+            if (item) item.text = text;
+            try { await fetch(`/save-ref-text?filename=${encodeURIComponent(currentSelectedPath)}&text=${encodeURIComponent(text)}`, { method: 'POST' }); } 
+            catch (err) { console.error(err); }
+        }
+
+        async function loadHistory() {
+            try {
+                const resp = await fetch('/history');
+                historyCache = await resp.json();
+                renderHistory();
+            } catch (err) { console.error(err); }
+        }
+
+        function renderHistory() {
+            const container = document.getElementById('historyContainer');
+            if (historyCache.length === 0) { container.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">Пусто</p>'; return; }
+            container.innerHTML = historyCache.map(item => `
+                <div class="history-item ${currentSelectedPath === item.path ? 'active' : ''}" id="item-${item.filename}" onclick="selectHistoryItem('${item.path}')">
+                    <div class="actions">
+                        <button class="btn-mini" onclick="renameAudio(event, '${item.filename}')">✎</button>
+                        <button class="btn-mini" onclick="deleteAudio(event, '${item.filename}')">✕</button>
+                    </div>
+                    <strong>${item.filename}</strong><span class="date">${new Date(item.date).toLocaleString()}</span>
+                </div>`).join('');
+        }
+
+        function selectHistoryItem(path) {
+            currentSelectedPath = path;
+            const item = historyCache.find(i => i.path === path);
+            document.getElementById('refText').value = item ? (item.text || "") : "";
+            document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
+            document.getElementById('item-' + path)?.classList.add('active');
+            wavesurfer.load(`/records/${path}`);
+            showStatus("Файл выбран", "success");
+        }
+
+        function showStatus(msg, type) {
+            const s = document.getElementById('status');
+            s.className = 'status show ' + (type || 'info');
+            s.textContent = msg;
+        }
+
+        async function doAnalyze() {
+            if (!currentSelectedPath) { showStatus('❌ Выберите файл', 'error'); return; }
+            const btn = document.getElementById('analyzeBtn');
+            btn.disabled = true; showStatus('⏳ Анализ...', 'loading');
+            const refText = document.getElementById('refText').value;
+            try {
+                const resp = await fetch(refText ? '/analyze-with-text' : '/analyze', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ audio_path: currentSelectedPath, reference_text: refText, params: {
+                        vad_threshold: parseFloat(document.getElementById('vadThreshold').value),
+                        min_pause_duration: parseFloat(document.getElementById('minPause').value),
+                        window_size: parseFloat(document.getElementById('windowSize').value),
+                        window_step: 0.5, smoothing: "moving_average", tempo_unit: "words", analysis_mode: "window", wavelet: 'morl', wavelet_scales_min: 1, wavelet_scales_max: 64
+                    }})
+                });
+                analysisData = await resp.json();
+                displayResults(analysisData);
+                showStatus('✅ Готово', 'success');
+            } catch (err) { showStatus('❌ Ошибка', 'error'); }
+            finally { btn.disabled = false; }
         }
 
         function displayResults(data) {
-            // Отображаем статистику
-            displayStats(data.summary);
+            const s = data.summary;
+            document.getElementById('valWpm').textContent = s.wpm.toFixed(1);
+            document.getElementById('valWords').textContent = s.word_count;
+            document.getElementById('valSpeech').textContent = s.speech_duration.toFixed(1);
+            document.getElementById('valPauses').textContent = s.pause_duration.toFixed(1);
+            document.getElementById('transcriptContainer').innerHTML = data.words.map(w => `<span class="word-span" onclick="wavesurfer.setTime(${w.start})">${w.word}</span>`).join(' ');
+            const v = data.visuals, c = {responsive: true};
+            Plotly.newPlot('chartWindow', v.timeline_window_words.data, v.timeline_window_words.layout, c);
+            Plotly.newPlot('chartWords', v.timeline_event_words.data, v.timeline_event_words.layout, c);
+            Plotly.newPlot('chartSyllables', v.timeline_event_syllables.data, v.timeline_event_syllables.layout, c);
+            Plotly.newPlot('chartPhonemes', v.timeline_event_phonemes.data, v.timeline_event_phonemes.layout, c);
+            Plotly.newPlot('fftChart', v.fft.data, v.fft.layout, c);
+            Plotly.newPlot('waveletChart', v.wavelet.data, v.wavelet.layout, c);
+        }
 
-            // Отображаем графики
-            if (data.charts) {
-                if (data.charts.tempo_timeline) {
-                    Plotly.newPlot('tempoChart', 
-                        data.charts.tempo_timeline.data,
-                        data.charts.tempo_timeline.layout,
-                        { responsive: true }
-                    );
-                }
+        async function deleteAudio(e, f) { e.stopPropagation(); if(confirm("Удалить?")) { await fetch('/delete-audio?filename='+encodeURIComponent(f), {method:'POST'}); loadHistory(); } }
+        async function renameAudio(e, f) { e.stopPropagation(); const n = prompt("Имя:", f); if(n) { await fetch(`/rename-audio?old_name=${encodeURIComponent(f)}&new_name=${encodeURIComponent(n)}`, {method:'POST'}); loadHistory(); } }
+        async function clearDatabase() { if(confirm("Очистить?")) { await fetch('/clear-database', {method:'POST'}); loadHistory(); } }
 
-                if (data.charts.acceleration) {
-                    Plotly.newPlot('accelerationChart',
-                        data.charts.acceleration.data,
-                        data.charts.acceleration.layout,
-                        { responsive: true }
-                    );
-                }
-
-                if (data.charts.fft_spectrum) {
-                    Plotly.newPlot('fftChart',
-                        data.charts.fft_spectrum.data,
-                        data.charts.fft_spectrum.layout,
-                        { responsive: true }
-                    );
-                }
-
-                if (data.charts.wavelet) {
-                    Plotly.newPlot('waveletChart',
-                        data.charts.wavelet.data,
-                        data.charts.wavelet.layout,
-                        { responsive: true }
-                    );
-                }
+        const recordBtn = document.getElementById('recordBtn');
+        recordBtn.onclick = async () => {
+            if (mediaRecorder?.state === "recording") { mediaRecorder.stop(); recordBtn.innerText = "🔴 Начать запись"; recordBtn.classList.remove('active'); }
+            else {
+                audioChunks = [];
+                try {
+                    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(s);
+                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                    mediaRecorder.onstop = async () => {
+                        showStatus("📤 Сохранение...", "loading");
+                        const b = new Blob(audioChunks, { type: 'audio/wav' });
+                        const fd = new FormData(); fd.append('file', b, 'rec.wav');
+                        fd.append('author_name', document.getElementById('authorName').value);
+                        fd.append('reference_text', document.getElementById('refText').value);
+                        const r = await fetch('/upload-audio', { method: 'POST', body: fd });
+                        const d = await r.json(); await loadHistory(); selectHistoryItem(d.filename);
+                        showStatus("✅ Сохранено", "success");
+                    };
+                    mediaRecorder.start(); recordBtn.innerText = "⏹️ Стоп"; recordBtn.classList.add('active');
+                } catch (err) { showStatus("Ошибка микрофона", "error"); }
             }
-        }
+        };
 
-        function displayStats(summary) {
-            const container = document.getElementById('statsContainer');
-            
-            const stats = [
-                { label: 'Темп (WPM)', value: summary.metrics?.avg_tempo?.toFixed(1) || 'N/A' },
-                { label: 'Слов', value: summary.metrics?.total_words || 'N/A' },
-                { label: 'Слогов', value: summary.metrics?.total_syllables || 'N/A' },
-                { label: 'Длительность речи', value: `${(summary.metrics?.speech_duration || 0).toFixed(2)}s` },
-                { label: 'Длительность пауз', value: `${(summary.metrics?.pause_duration || 0).toFixed(2)}s` },
-                { label: 'Кол-во пауз', value: summary.metrics?.num_pauses || 'N/A' }
-            ];
-
-            container.innerHTML = stats.map(stat => `
-                <div class="stat-card">
-                    <div class="stat-label">${stat.label}</div>
-                    <div class="stat-value">${stat.value}</div>
-                </div>
-            `).join('');
-        }
-
-        function switchTab(tabName) {
-            // Скрываем все табы
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
+        window.onload = () => {
+            initWaveSurfer();
+            loadHistory();
+            document.getElementById('analyzeBtn').onclick = doAnalyze;
+            document.getElementById('playPauseBtn').onclick = () => wavesurfer.playPause();
+            document.getElementById('playbackSpeed').onchange = e => wavesurfer.setPlaybackRate(parseFloat(e.target.value));
+            ['Summary', 'Graphs', 'Spectrum'].forEach(t => document.getElementById('tab'+t).onclick = () => {
+                ['Summary', 'Graphs', 'Spectrum'].forEach(tab => { document.getElementById('tab'+tab).classList.remove('active'); document.getElementById('content'+tab).classList.remove('active'); });
+                document.getElementById('tab'+t).classList.add('active'); document.getElementById('content'+t).classList.add('active'); window.dispatchEvent(new Event('resize'));
             });
-
-            // Убираем активное состояние со всех кнопок
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('active');
+            ['Transcript', 'Params'].forEach(t => document.getElementById('sideTab'+t).onclick = () => {
+                ['Transcript', 'Params'].forEach(tab => { document.getElementById('sideTab'+tab).classList.remove('active'); document.getElementById('sideContent'+tab).classList.remove('active'); });
+                document.getElementById('sideTab'+t).classList.add('active'); document.getElementById('sideContent'+t).classList.add('active');
             });
-
-            // Показываем нужный таб
-            document.getElementById(tabName).classList.add('active');
-
-            // Активируем нужную кнопку
-            event.target.classList.add('active');
-        }
-
-        function resetForm() {
-            document.getElementById('audioPath').value = 'test.wav';
-            document.getElementById('refText').value = '';
-            document.getElementById('vadThreshold').value = '0.5';
-            document.getElementById('minPause').value = '0.3';
-            document.getElementById('windowSize').value = '0.5';
-            document.getElementById('windowStep').value = '0.1';
-            document.getElementById('smoothing').value = 'hann';
-            document.getElementById('tempoUnit').value = 'wpm';
-            document.getElementById('wavelet').value = 'morlet';
-            document.getElementById('waveletScalesMin').value = '1';
-            document.getElementById('waveletScalesMax').value = '100';
-            hideStatus();
-        }
-
-        // Проверяем здоровье API при загрузке страницы
-        window.addEventListener('load', async () => {
-            try {
-                const response = await fetch('http://localhost:8000/health');
-                if (response.ok) {
-                    showStatus('✅ API подключен', 'success');
-                    setTimeout(hideStatus, 2000);
-                }
-            } catch (error) {
-                showStatus('❌ Ошибка подключения к API. Убедитесь, что сервер запущен на http://localhost:8000', 'error');
-            }
-        });
+        };
     </script>
 </body>
 </html>

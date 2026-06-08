@@ -5,17 +5,41 @@ from typing import Any
 import plotly.graph_objects as go
 
 
-def tempo_figure(times: list[float], tempo: list[float], acceleration: list[float], speech_segments: list[list[float]], pauses: list[list[float]]) -> dict[str, Any]:
+def tempo_figure(times: list[float], tempo: list[float], acceleration: list[float], speech_segments: list[list[float]], pauses: list[list[float]], labels: list[str] = None, y_label: str = "Tempo") -> dict[str, Any]:
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=times, y=tempo, name="Tempo", mode="lines"))
-    fig.add_trace(go.Scatter(x=times, y=acceleration, name="Acceleration", mode="lines"))
+    
+    fig.add_trace(go.Scatter(
+        x=times, 
+        y=tempo, 
+        name="Tempo", 
+        mode="lines+markers+text" if labels else "lines",
+        text=labels,
+        textposition="top center",
+        hoverinfo="x+y+text",
+        textfont=dict(size=10)
+    ))
+    
+    fig.add_trace(go.Scatter(
+        x=times, 
+        y=acceleration, 
+        name="Acceleration", 
+        mode="lines", 
+        line=dict(dash='dash'),
+        opacity=0.5
+    ))
 
     for start, end in speech_segments:
         fig.add_vrect(x0=start, x1=end, fillcolor="green", opacity=0.08, line_width=0)
     for start, end in pauses:
         fig.add_vrect(x0=start, x1=end, fillcolor="red", opacity=0.08, line_width=0)
 
-    fig.update_layout(title="Tempo and Acceleration", xaxis_title="Time (s)", yaxis_title="Tempo")
+    fig.update_layout(
+        title="Tempo Analysis", 
+        xaxis_title="Time (s)", 
+        yaxis_title=y_label,
+        height=500, # Увеличиваем высоту для читаемости
+        margin=dict(t=50, b=50, l=50, r=50)
+    )
     return fig.to_plotly_json()
 
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Any
-
 from pydantic import BaseModel, Field
 
 
@@ -12,6 +11,7 @@ class AnalysisParamsModel(BaseModel):
     window_step: float = 0.5
     smoothing: str = "moving_average"
     tempo_unit: str = "words"
+    analysis_mode: str = "window"
     wavelet: str = "morl"
     wavelet_scales_min: int = 1
     wavelet_scales_max: int = 64
@@ -41,8 +41,8 @@ class CompareRequest(BaseModel):
 
 class AnalysisResponse(BaseModel):
     summary: dict[str, Any]
-    tempo_series: dict[str, list[float]]
-    derivatives: dict[str, list[float]]
+    words: list[dict[str, Any]] | None = None
+    all_series: dict[str, dict[str, Any]]  # Новое поле для 4-х графиков
     pauses: dict[str, Any]
     spectrum_fft: dict[str, list[float]]
     wavelet: dict[str, Any]

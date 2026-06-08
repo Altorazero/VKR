@@ -1,54 +1,39 @@
 from __future__ import annotations
 
 import os
-import wave
 from pathlib import Path
-
 import numpy as np
-
+import soundfile as sf
 
 def resolve_audio_path(audio_path: str) -> Path:
-    root = Path(os.getenv("AUDIO_ROOT", os.getcwd())).resolve()
-    if not root.is_dir():
-        raise FileNotFoundError(f"AUDIO_ROOT does not exist: {root}")
+    # 1. Если это уже существующий абсолютный путь
+    path = Path(audio_path)
+    if path.is_absolute() and path.is_file():
+        return path
+        
+    root = Path(os.getcwd()).resolve()
+    
+    # 2. Проверяем в папке records/
+    filename = os.path.basename(audio_path)
+    records_path = root / "records" / filename
+    if records_path.is_file():
+        return records_path
+        
+    # 3. Проверяем просто в корне
+    local_path = root / filename
+    if local_path.is_file():
+        return local_path
 
-    catalog = _audio_catalog(root)
-    resolved = catalog.get(audio_path)
-    if resolved is None:
-        raise FileNotFoundError(
-            "Audio file not found in AUDIO_ROOT catalog. "
-            "Use a relative .wav path from AUDIO_ROOT."
-        )
-    return resolved
-
+    raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
 def load_wav_mono(audio_path: str | Path) -> tuple[np.ndarray, int]:
     path = audio_path if isinstance(audio_path, Path) else resolve_audio_path(audio_path)
-
-    with wave.open(str(path), "rb") as wf:
-        sample_rate = wf.getframerate()
-        channels = wf.getnchannels()
-        frames = wf.readframes(wf.getnframes())
-        sample_width = wf.getsampwidth()
-
-    if sample_width == 2:
-        audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
-    elif sample_width == 4:
-        audio = np.frombuffer(frames, dtype=np.int32).astype(np.float32) / 2147483648.0
-    else:
-        raise ValueError(f"Unsupported WAV sample width: {sample_width}")
-
-    if channels > 1:
-        audio = audio.reshape(-1, channels).mean(axis=1)
-
-    return audio, sample_rate
-
-
-def _audio_catalog(root: Path) -> dict[str, Path]:
-    catalog: dict[str, Path] = {}
-    for wav in root.rglob("*.wav"):
-        if not wav.is_file():
-            continue
-        rel = wav.relative_to(root).as_posix()
-        catalog[rel] = wav
-    return catalog
+    
+    # soundfile читает почти все форматы и сразу возвращает numpy
+    data, sample_rate = sf.read(str(path))
+    
+    # Конвертация в моно, если стерео
+    if len(data.shape) > 1:
+        data = np.mean(data, axis=1)
+        
+    return data.astype(np.float32), sample_rate

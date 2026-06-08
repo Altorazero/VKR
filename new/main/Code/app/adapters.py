@@ -136,20 +136,37 @@ class RealWhisperASR:
         sample_rate: int,
         speech_segments: list[tuple[float, float]],
     ) -> list[WordTiming]:
-        del audio_path
         if not self.available:
             raise RuntimeError("whisper is not available")
         import whisper
 
         if self._model is None:
+            print(f"Loading Whisper model ({self.model_size})...")
             self._model = whisper.load_model(self.model_size)
 
         resampled = _resample_if_needed(audio, sample_rate, target_rate=16000)
+        
+        # Явно указываем word_timestamps=True
         result = self._model.transcribe(resampled, fp16=False, word_timestamps=True)
-        words = _extract_whisper_words(result)
+        
+        # Пытаемся извлечь слова из сегментов
+        words = []
+        segments = result.get("segments", [])
+        for segment in segments:
+            if "words" in segment:
+                for w in segment["words"]:
+                    word_text = w.get("word", "").strip()
+                    if word_text:
+                        words.append(WordTiming(
+                            word=word_text,
+                            start=float(w["start"]),
+                            end=float(w["end"])
+                        ))
+        
         if words:
             return words
 
+        # Если слов с метками нет, берем хотя бы текст
         text = str(result.get("text", "")).strip()
         if not text:
             return []
@@ -200,7 +217,7 @@ class RealWhisperXAligner:
             align_model_metadata=metadata,
             audio=_resample_if_needed(audio, sample_rate, target_rate=16000),
             device=self.device,
-            return_char_alignments=False,
+            return_char_alignments=True, # Включаем посимвольное выравнивание для точности
         )
         word_segments = aligned.get("word_segments", [])
         words: list[WordTiming] = []
